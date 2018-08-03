@@ -1,0 +1,22 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+#Setup
+```{r}
+source("http://bioconductor.org/biocLite.R")
+biocLite()
+biocLite("edgeR")
+biocLite("limma")
+biocLite("Glimma")
+library(edgeR)
+library(limma)
+library(Glimma)
+```
+#Import data
+```{r}
+read.delim("nematocida.counts.matrix", nrow=5)
+x <- DGEList("nematocida.counts.matrix", )
+```
+
