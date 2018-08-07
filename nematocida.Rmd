@@ -16,13 +16,14 @@ library(edgeR)
 library(limma)
 library(Glimma)
 ```
+
 #Import data
 ```{r}
 genes_rsem <- read.csv("nematocida.counts.matrix", stringsAsFactors = F, check.names = F)
 dim(genes_rsem)
 head(genes_rsem)
 ```
-
+##Set up counts matrix
 ```{r}
 counts_matrix <- genes_rsem[,2:10]
 rownames(counts_matrix) <- genes_rsem[,1]
@@ -30,17 +31,21 @@ colnames(counts_matrix)
 dim(counts_matrix)
 head(counts_matrix)
 ```
-#Generate DGElist
+
+##Generate DGElist object
 ```{r}
 x <- DGEList(counts=counts_matrix, genes = row.names(counts_matrix))
 class(x)
 x
 ```
+
 #Organize data
 ```{r}
 samplenames <- substring(colnames(x),7,nchar(colnames(x)))
 samplenames
 ```
+##Group by treatments
+*All samples are of the same strain, temperature, RNA-seq lane
 ```{r}
 colnames(x) <- samplenames
 treat <- as.factor(rep(c("un", "ERTm1", "ERTm2"),3))
@@ -48,23 +53,26 @@ treat <- factor(treat, levels = c("un", "ERTm1", "ERTm2"))
 x$samples$group <- treat
 x$samples
 ```
-#Data pre-processing
+
+##Data pre-processing
 ```{r}
 cpm <- cpm(x)
 lcpm <- cpm(x, log=T)
 head(cpm)
 ```
-#Remove lowly expressed genes
-First expression checks the number of genes that have zero counts in every condition.
-Second expression creates a vector of genes that have cpm >1 in at least three rows. We choose three because that is the number of replicates we have, however, this is an arbitrary number and the cutoff is flexible.
-The last expression keeps the genes that match the cutoff described above and refactors the library sizes now that we have dropped a number of genes along with their count data. 
+
+##Remove lowly expressed genes
+1. First expression checks the number of genes that have zero counts in every condition.
+2. Second expression creates a vector of genes that have cpm >1 in at least three rows. We choose three because that is the number of replicates we have, however, this is an arbitrary number and the cutoff is flexible.
+3. The last expression keeps the genes that match the cutoff described above and refactors the library sizes now that we have dropped a number of genes along with their count data. 
 ```{r}
 table(rowSums(x$counts==0)==12)
 keep.exprs <- rowSums(cpm>1)>=3
 x <- x[keep.exprs,, keep.lib.sizes=F]
 dim(x)
 ```
-#Graph showcasing the filtering
+
+##Graphs showing filtering of low-count genes
 ```{r}
 library(RColorBrewer)
 nsamples <- ncol(x)
@@ -88,12 +96,15 @@ for (i in 2:nsamples) {
 }
 legend("topright", samplenames, text.col = col, bty="n", cex=0.6)
 ```
-#Normalizing gene expression distributions
+
+##Normalizing gene expression distributions
 ```{r}
 x <- calcNormFactors(x, method = "TMM")
 x$samples$norm.factors
 ```
+
 #Unsupervised clustering
+Dimension 1 (x-axis in left plot) represents the largest contributor to the variance within the data. What this shows is that all ERTm1 and ERTm2 treated samples are quite similar to each other, while being quite different than untreated N2 samples. Differences in the replicates can be seen in the higher dimensions.
 ```{r}
 lcpm <- cpm(x, log=T)
 par(mfrow=c(1,2))
@@ -107,7 +118,7 @@ title(main="Treatments - dim 3,4")
 ```
 
 #Differential expression analysis
-Create design matrix and cotnrasts
+##Create design matrix and contrasts
 ```{r}
 design <- model.matrix(~0+treat)
 colnames(design) <- gsub("treat", "", colnames(design))
@@ -121,7 +132,9 @@ contrast.matrix <- makeContrasts(
   )
 contrast.matrix
 ```
-#Remove heteroscedasity
+
+##Remove heteroscedasity
+The variance of RNA-seq data isn ot independant of the log-cpm mean. This is visualized by the graph on the left, showing more variability in samples with lower counts. The voom function attempts to remmpve this heteroscedacity.
 ```{r}
 par(mfrow=c(1,2))
 v <- voom(x, design, plot = T)
@@ -129,9 +142,11 @@ vfit <- lmFit(v, design)
 vfit <- contrasts.fit(vfit, contrasts = contrast.matrix)
 efit <- eBayes(vfit)
 plotSA(efit)
+title(main = "Final model: Mean-variance trend")
 ```
-#Examining differentially expressed genes
-I will not be using a logFC criteria in this analysis. If one would like to do so, then use the `treat` function
+
+##Examining differentially expressed genes
+I will not be using a logFC criteria in this analysis. If one would like to do so, then use the `treat` function.
 ```{r}
 dt <- decideTests(efit)
 summary(dt)
@@ -150,23 +165,32 @@ common.genes
 p <- 0.05
 ERTm1.vs.N2 <- topTable(efit, coef = 1, n=Inf, p.value = p)
 dim(ERTm1.vs.N2)
-head(ERTm1.vs.N2)
+ERTm1.vs.N2
 ERTm2.vs.N2 <- topTable(efit, coef = 2, n=Inf, p.value = p)
 dim(ERTm2.vs.N2)
-head(ERTm2.vs.N2)
+ERTm2.vs.N2
 ```
-Clustering heatmap for ERTm1 genes (all 87 UP genes)
-```{r}
-#fix margins too large error
-par(mar=c(2,2,2,2))
-par(mfrow=c(1,1))
-#Heatmap
+
+#Heatmaps
+The heatmaps show the relative expression of genes across all samples. Samples are averaged across the rows, so a dark red cell indicates a gene is more highly expressed in that sample than the average expression of the gene in all samples.
+
+##Differentially expressed genes in ERTm1 treated animals (87 genes in total)
+```{r, fig.height=15, fig.width=10}
 library(gplots)
 i <- which(v$genes$genes %in% ERTm1.vs.N2[,1])
 mycol <- colorpanel(1000,"blue","white","red")
-heatmap.2(v$E[i,], scale = "row", labRow = v$genes$genes[i], labCol = treat,
-          col = mycol, trace = "none", density.info = "none", margins = c(4,3), keysize = 1,
-          lhei = c(2,4), dendrogram = "column", cexRow = 0.55, cexCol = 0.67)
+heatmap.2(v$E[i,], scale = "row", labRow = v$genes$genes[i], labCol=treat, col=mycol, 
+          trace="none", density.info = "none", margins = c(5,10), lhei = c(1,8), lwid = c(1,4),
+          dendrogram = "column",cexRow = 1, cexCol = 1, keysize = 1)
+```
+
+##Top 100 differentially expressed genes in ERTm2 treated animals (ranked by FDR)
+```{r fig.height=15, fig.width=10}
+ERTm2.vs.N2.top <- ERTm2.vs.N2$genes[1:100]
+i <- which(v$genes$genes %in% ERTm2.vs.N2.top)
+heatmap.2(v$E[i,], scale = "row", labRow = v$genes$genes[i], labCol=treat, col=mycol, 
+          trace="none", density.info = "none", margins = c(5,5), lhei = c(1,8), lwid = c(1,4),
+          dendrogram = "column",cexRow = 1, cexCol = 1, keysize = 1)
 ```
 
 ```{r}
@@ -175,21 +199,8 @@ plotMD(efit, column=1, status = dt[,1], main=colnames(efit)[1])
 ```{r}
 plotMD(efit, column=2, status = dt[,2], main=colnames(efit)[2])
 ```
-this glMDplot is of ERTm2vsN2
-```{r eval=F}
-glMDPlot(efit, coef=1, status = dt[,1], main = colnames(efit)[1],
-         side.main ="genes", counts = x$counts, groups = treat, launch = F,
-         html = "2018_08_06_ERT1vsN2_MDplot")
-```
 
-this glMDplot is of ERTm2vsN2
-```{r eval=F}
-glMDPlot(efit, coef=2, status = dt[,2], main = colnames(efit)[2],
-         side.main ="genes", counts = x$counts, groups = treat, launch = F,
-         html = "2018_08_06_ERT2vsN2_MDplot")
-```
-
-#Extracting gene lists
+##Extracting gene lists
 ```{r}
 #Create vector containing commone UP gene names
 de.common.up <- which(dt[,1] !=0 & dt[,2]!=0)
@@ -218,7 +229,7 @@ ERTm2.vs.N2.unique <- ERTm2.vs.N2[ERTm2.vs.N2.unique,1:2]
 ERTm2.vs.N2.unique
 ```
 #Write to xlsx
-```{r}
+```{r eval=F}
 library(openxlsx)
 
 wb <- createWorkbook()
@@ -236,6 +247,20 @@ setColWidths(wb, sheet = 3, cols = 1:2, widths = "auto")
 saveWorkbook(wb, "2018_08_06_Nematocida_DEGenes.xlsx", overwrite = T)
 ```
 
+#Glimma Plots
+##This glMDplot is of ERTm1vsN2
+```{r eval=F}
+glMDPlot(efit, coef=1, status = dt[,1], main = colnames(efit)[1],
+         side.main ="genes", counts = x$counts, groups = treat, launch = F,
+         html = "2018_08_06_ERT1vsN2_MDplot")
+```
+
+##This glMDplot is of ERTm2vsN2
+```{r eval=F}
+glMDPlot(efit, coef=2, status = dt[,2], main = colnames(efit)[2],
+         side.main ="genes", counts = x$counts, groups = treat, launch = F,
+         html = "2018_08_06_ERT2vsN2_MDplot")
+```
 
 ```{r}
 sessionInfo()
