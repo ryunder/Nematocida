@@ -1,6 +1,8 @@
 ---
 title: "R Notebook"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 #Setup
@@ -22,8 +24,9 @@ head(genes_rsem)
 ```
 
 ```{r}
-counts_matrix <- genes_rsem[,2:13]
+counts_matrix <- genes_rsem[,2:10]
 rownames(counts_matrix) <- genes_rsem[,1]
+colnames(counts_matrix)
 dim(counts_matrix)
 head(counts_matrix)
 ```
@@ -40,11 +43,9 @@ samplenames
 ```
 ```{r}
 colnames(x) <- samplenames
-treat <- as.factor(c(rep(c("un", "ERTm1", "ERTm2"),3),"ERTm1","un","ERTm2"))
+treat <- as.factor(rep(c("un", "ERTm1", "ERTm2"),3))
 treat <- factor(treat, levels = c("un", "ERTm1", "ERTm2"))
 x$samples$group <- treat
-lane <- as.factor(rep(c("L004", "L007"), c(9,3)))
-x$samples$lane <- lane
 x$samples
 ```
 #Data pre-processing
@@ -55,11 +56,11 @@ head(cpm)
 ```
 #Remove lowly expressed genes
 First expression checks the number of genes that have zero counts in every condition.
-Second expression creates a vector of genes that have cpm >1 in at least four rows. We choose four because that is the number of replicates we have, however, this is an arbitrary number and this cutoff is flexible.
+Second expression creates a vector of genes that have cpm >1 in at least three rows. We choose three because that is the number of replicates we have, however, this is an arbitrary number and the cutoff is flexible.
 The last expression keeps the genes that match the cutoff described above and refactors the library sizes now that we have dropped a number of genes along with their count data. 
 ```{r}
 table(rowSums(x$counts==0)==12)
-keep.exprs <- rowSums(cpm>1)>=4
+keep.exprs <- rowSums(cpm>1)>=3
 x <- x[keep.exprs,, keep.lib.sizes=F]
 dim(x)
 ```
@@ -99,22 +100,16 @@ par(mfrow=c(1,2))
 col.group <- treat
 levels(col.group) <- brewer.pal(nlevels(col.group), "Set1")
 col.group<-as.character(col.group)
-col.lane <- lane
-levels(col.lane) <- brewer.pal(nlevels(col.lane), "Set2")
-col.lane<-as.character(col.lane)
 plotMDS(lcpm, labels = treat, col=col.group)
 title(main="Treatments")
 plotMDS(lcpm, labels = treat, col=col.group, dim=c(3,4))
 title(main="Treatments - dim 3,4")
-plotMDS(lcpm, labels = lane, col=col.group)
-title(main="Lane")
-plotMDS(lcpm, labels = lane, dim=c(3,4), col=col.group)
-title(main="Lane - dim 3,4")
 ```
+
 #Differential expression analysis
-#Create design matrix and cotnrasts
+Create design matrix and cotnrasts
 ```{r}
-design <- model.matrix(~0+treat+lane)
+design <- model.matrix(~0+treat)
 colnames(design) <- gsub("treat", "", colnames(design))
 design
 ```
@@ -122,7 +117,6 @@ design
 contrast.matrix <- makeContrasts(
   ERTm1vsN2 = ERTm1 - un,
   ERTm2vsN2 = ERTm2 - un,
-  ERTm2vsERTm1 = ERTm2 - ERTm1,
   levels = colnames(design)
   )
 contrast.matrix
@@ -161,8 +155,18 @@ ERTm2.vs.N2 <- topTable(efit, coef = 2, n=Inf, p.value = p)
 dim(ERTm2.vs.N2)
 head(ERTm2.vs.N2)
 ```
+Clustering heatmap for ERTm1 genes (all 87 UP genes)
 ```{r}
-
+#fix margins too large error
+par(mar=c(2,2,2,2))
+par(mfrow=c(1,1))
+#Heatmap
+library(gplots)
+i <- which(v$genes$genes %in% ERTm1.vs.N2[,1])
+mycol <- colorpanel(1000,"blue","white","red")
+heatmap.2(v$E[i,], scale = "row", labRow = v$genes$genes[i], labCol = treat,
+          col = mycol, trace = "none", density.info = "none", margins = c(4,3), keysize = 1,
+          lhei = c(2,4), dendrogram = "column", cexRow = 0.55, cexCol = 0.67)
 ```
 
 ```{r}
@@ -175,15 +179,64 @@ this glMDplot is of ERTm2vsN2
 ```{r eval=F}
 glMDPlot(efit, coef=1, status = dt[,1], main = colnames(efit)[1],
          side.main ="genes", counts = x$counts, groups = treat, launch = F,
-         html = "2018_08_03_ERT1vsN2_MDplot")
+         html = "2018_08_06_ERT1vsN2_MDplot")
 ```
 
 this glMDplot is of ERTm2vsN2
 ```{r eval=F}
 glMDPlot(efit, coef=2, status = dt[,2], main = colnames(efit)[2],
          side.main ="genes", counts = x$counts, groups = treat, launch = F,
-         html = "2018_08_03_ERT2vsN2_MDplot")
+         html = "2018_08_06_ERT2vsN2_MDplot")
 ```
+
+#Extracting gene lists
+```{r}
+#Create vector containing commone UP gene names
+de.common.up <- which(dt[,1] !=0 & dt[,2]!=0)
+length(de.common.up)
+common.genes <- efit$genes[de.common.up,1]
+common.genes
+#collect names and logFC values of common UP genes
+ERTm1.vs.N2.common <- ERTm1.vs.N2[common.genes,2]
+ERTm2.vs.N2.common <- ERTm2.vs.N2[common.genes,2]
+de <- data.frame(ERTm1.vs.N2.common, ERTm2.vs.N2.common, row.names = ERTm1.vs.N2[common.genes,1])
+de
+```
+```{r}
+#Collect unique genes from both sets
+#Unique for ERTm1
+de.ertm1.unique <- which(dt[,1] !=0 & dt[,2]==0)
+length(de.ertm1.unique)
+ERTm1.vs.N2.unique <- efit$genes[de.ertm1.unique,1]
+ERTm1.vs.N2.unique <- ERTm1.vs.N2[ERTm1.vs.N2.unique,1:2]
+ERTm1.vs.N2.unique
+#uniqe for ERTm2
+de.ertm2.unique <- which(dt[,1] ==0 & dt[,2]!=0)
+length(de.ertm2.unique)
+ERTm2.vs.N2.unique <- efit$genes[de.ertm2.unique,1]
+ERTm2.vs.N2.unique <- ERTm2.vs.N2[ERTm2.vs.N2.unique,1:2]
+ERTm2.vs.N2.unique
+```
+#Write to xlsx
+```{r}
+library(openxlsx)
+
+wb <- createWorkbook()
+addWorksheet(wb, sheetName = "Common UP")
+addWorksheet(wb, sheetName = "ERTm1 unique")
+addWorksheet(wb, sheetName = "ERTm2 unique")
+
+writeData(wb, "Common UP", de, rowNames = T)
+setColWidths(wb, sheet = 1, cols = 1:3, widths = "auto")
+writeData(wb, "ERTm1 unique", ERTm1.vs.N2.unique)
+setColWidths(wb, sheet = 2, cols = 1:2, widths = "auto")
+writeData(wb, "ERTm2 unique", ERTm2.vs.N2.unique)
+setColWidths(wb, sheet = 3, cols = 1:2, widths = "auto")
+
+saveWorkbook(wb, "2018_08_06_Nematocida_DEGenes.xlsx", overwrite = T)
+```
+
+
 ```{r}
 sessionInfo()
 ```
