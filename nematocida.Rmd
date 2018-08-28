@@ -255,13 +255,33 @@ length(de.ertm1.unique)
 ERTm1.vs.N2.unique <- efit$genes[de.ertm1.unique,1]
 ERTm1.vs.N2.unique <- ERTm1.vs.N2[ERTm1.vs.N2.unique,1:2]
 ERTm1.vs.N2.unique
-#uniqe for ERTm2
+
+#Unique UP for ERTm1 
+de.ertm1.unique.up <- which(dt[,1] ==1 & dt[,2]==0)
+length(de.ertm1.unique.up)
+ERTm1.vs.N2.unique.UP <- efit$genes[de.ertm1.unique.up,1]
+ERTm1.vs.N2.unique.UP <- ERTm1.vs.N2[ERTm1.vs.N2.unique.UP,1:2]
+ERTm1.vs.N2.unique.UP
+
+#unique for ERTm2
 de.ertm2.unique <- which(dt[,1] ==0 & dt[,2]!=0)
 length(de.ertm2.unique)
 ERTm2.vs.N2.unique <- efit$genes[de.ertm2.unique,1]
 ERTm2.vs.N2.unique <- ERTm2.vs.N2[ERTm2.vs.N2.unique,1:2]
 ERTm2.vs.N2.unique
+
+#unique UP for ERTm2
+de.ertm2.unique.up <- de.ertm2.unique <- which(dt[,1] ==0 & dt[,2]==1)
+length(de.ertm2.unique.up)
+ERTm2.vs.N2.unique.UP <- efit$genes[de.ertm2.unique.up,1]
+ERTm2.vs.N2.unique.UP <- ERTm2.vs.N2[ERTm2.vs.N2.unique.UP,1:2]
 ```
+
+##Create summary table
+```{r}
+summary(dt)
+```
+
 
 #Write to xlsx
 This is one useful package to write and generate spreadsheets directly from R. Refer to the manual as this package is quite powerful
@@ -269,18 +289,28 @@ This is one useful package to write and generate spreadsheets directly from R. R
 library(openxlsx)
 
 wb <- createWorkbook()
+addWorksheet(wb, sheetName = "Summary")
 addWorksheet(wb, sheetName = "Common UP")
-addWorksheet(wb, sheetName = "ERTm1")
-addWorksheet(wb, sheetName = "ERTm2")
+addWorksheet(wb, sheetName = "ERTm1 UP unique")
+addWorksheet(wb, sheetName = "ERTm2 UP unique")
+addWorksheet(wb, sheetName = "ERTm1 all")
+addWorksheet(wb, sheetName = "ERTm2 all")
+addWorksheet(wb, sheetName = "IPR")
 
+writeData(wb, "Summary", summary(dt, rowNames = F))
+setColWidths(wb, sheet = 1, cols = 1:3, widths = "auto")
 writeData(wb, "Common UP", de, rowNames = T)
 setColWidths(wb, sheet = 1, cols = 1:3, widths = "auto")
-writeData(wb, "ERTm1", ERTm1.vs.N2)
+writeData(wb, "ERTm1 UP unique", ERTm1.vs.N2.unique.UP)
 setColWidths(wb, sheet = 2, cols = 1:2, widths = "auto")
-writeData(wb, "ERTm2", ERTm2.vs.N2)
+writeData(wb, "ERTm2 UP unique", ERTm2.vs.N2.unique.UP)
 setColWidths(wb, sheet = 3, cols = 1:2, widths = "auto")
+writeData(wb, "ERTm1 all", ERTm1.vs.N2)
+setColWidths(wb, sheet = 4, cols = 1:2, widths = "auto")
+writeData(wb, "ERTm2 all", ERTm2.vs.N2)
+setColWidths(wb, sheet = 5, cols = 1:2, widths = "auto")
 
-saveWorkbook(wb, "2018_08_17_Nematocida_DEGenes.xlsx", overwrite = T)
+saveWorkbook(wb, "2018_08_27_Nematocida_DEGenes.xlsx", overwrite = T)
 ```
 
 #Glimma Plots
