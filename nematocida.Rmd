@@ -38,7 +38,7 @@ or a graph:
 plot(cars$speed)
 ```
 
-One useful concept to understand is commenting. Commenting uses a `#` (in R and other languages, but not all) to tell the computer that the line following the `#` is meant for humans and should not be interpreted as part of the program. See some of the previous code blocks to see this in action. 
+One useful concept to understand is commenting. Commenting uses a `#` (in R and other languages, but not all) to tell the computer that the line following the `#` is meant for humans and should not be interpreted as code. See some of the previous code blocks to see this in action. 
 
 #Setup
 ##Install packages
@@ -63,14 +63,16 @@ library(limma)
 In this particular instance, it looks like loading edgeR automatically loads the limma package. This is not always the case, and I am showing both libraries in order to be explicit.
 
 #Import data
-This matrix file was generated at the Broad institue. It is the processed data, the result of mapping (via bowtie2) and counts quantified (using RSEM). Often times each sample will have its own individual file, but here we just have the one file. There are a variety of ways to do this, and this is just one example. I use `dim()` to check the dimensions of this matrix (row, column), and `head()` to inspect the first 6 rows of the matrix.
+This matrix file was generated at the Broad institue. It is the processed data, the result of mapping (via [bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml)) and counts quantified (using [RSEM](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-12-323)). There are a variety of ways to do this, and this is just one example. I use `dim()` to check the dimensions of this matrix (row, column), and `head()` to inspect the first 6 rows of the matrix.  
+
+Note: In this case we have a single matrix file, but this is not always true. In many instances each sample will have an individual file with the raw count data.
 ```{r}
 genes_rsem <- read.csv("nematocida.counts.matrix", stringsAsFactors = F, check.names = F)
 dim(genes_rsem)
 head(genes_rsem)
 ```
 
-Note: the arguments in the `read.csv()` function were necessary for this analysis, which I discovered empirically, but that may not always be true.
+Note: the arguments in the `read.csv()` function were necessary for this analysis, which I discovered by trial and error, but that may not always be true.
 
 ##Set up counts matrix
 We will use only a subset of the data in this case. We are only interested in the Control, ERTm1, and ERTm2 samples from L004. To do this, I make a new matrix consisting of the data columns we are interested in and the gene names are stored as rownames of this matrix. I then check the `dim()` to make sure I have all of the rows, and check `head()` to make sure I have the correct columns and that the rows are named properly.
@@ -245,6 +247,7 @@ summary(dt)
 ```
 
 ##Visualize the above data with Venn diagrams
+When analyzing datasets with more than two comparisons, it is possible to generate diagrams of 3 or more comparisons by adding additional columns of `dt`
 ```{r}
 vennDiagram(dt[,1:2], circle.col = c("red", "blue"), include = "up", show.include = T)
 ```
@@ -259,7 +262,8 @@ common.genes
 ```
 
 ##Use R to generate data objects containing all differentially expressed genes. 
-The p.value cutoff can be adjusted to whatever you'd like. Note: that the cutoff refers to the adjusted p-value, which in our case is the FDR value. FDR is the output of a statistical test that incorporates multiple-hypothesis testing and should be the value that you refer to.
+The p.value cutoff can be adjusted to whatever you'd like.  
+Note: that the cutoff refers to the adjusted p-value, which in our case is the FDR value. FDR is the output of a statistical test that incorporates multiple-hypothesis testing and should be the value that you refer to. It is also possible to include a logFC cutoff here. However, as stated above, there are reasons why that cutoff may not be accurate.
 ```{r}
 p <- 0.05
 ERTm1.vs.N2 <- topTable(efit, coef = 1, n=Inf, p.value = p)
@@ -273,7 +277,7 @@ ERTm2.vs.N2
 #Heatmaps
 The heatmaps show the relative expression of genes across all samples. Samples are averaged across the rows, so a dark red cell indicates a gene is more highly expressed in that sample than the average expression of the gene in all samples.
 
-##Differentially expressed genes in ERTm1 treated animals (87 genes in total)
+##Differentially expressed genes in ERTm1 treated animals (87 genes in total) ranked by FDR
 ```{r, fig.height=15, fig.width=10}
 library(gplots)
 i <- which(v$genes$genes %in% ERTm1.vs.N2[,1])
@@ -344,14 +348,8 @@ ERTm2.vs.N2.unique.UP <- efit$genes[de.ertm2.unique.up,1]
 ERTm2.vs.N2.unique.UP <- ERTm2.vs.N2[ERTm2.vs.N2.unique.UP,1:2]
 ```
 
-##Create summary table
-```{r}
-summary(dt)
-```
-
-
 #Write to xlsx
-This is one useful package to write and generate spreadsheets directly from R. Refer to the manual as this package is quite powerful. Ultimately though, you'll probably have to do some formatting within excel.
+This is one useful package to write and generate spreadsheets directly from R. Refer to the manual as this package is quite powerful. I have not found it possible to write and format the excel file precicely how I'd want, so ultimately you'll probably have to do some formatting within excel.
 ```{r eval=F}
 library(openxlsx)
 
@@ -381,16 +379,16 @@ saveWorkbook(wb, "2018_08_27_Nematocida_DEGenes.xlsx", overwrite = T)
 ```
 
 #Glimma Plots
-Glimma plots will generate an HTML file and some javascript files. Together, they can be opened in your internet browser window and are a powerful way to interactively explore the dataset.
+Glimma plots will generate an HTML file and some javascript files. Together, they can be opened in your internet browser window and are an interactive way to explore the dataset. 
 
-##This glMDplot is of ERTm1vsN2
+##This Glimma plot is of ERTm1vsN2
 ```{r eval=F}
 glMDPlot(efit, coef=1, status = dt[,1], main = colnames(efit)[1],
          side.main ="genes", counts = x$counts, groups = treat, launch = F,
          html = "2018_08_06_ERT1vsN2_MDplot")
 ```
 
-##This glMDplot is of ERTm2vsN2
+##This Glimma plot is of ERTm2vsN2
 ```{r eval=F}
 glMDPlot(efit, coef=2, status = dt[,2], main = colnames(efit)[2],
          side.main ="genes", counts = x$counts, groups = treat, launch = F,
